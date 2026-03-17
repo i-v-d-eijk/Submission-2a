@@ -56,6 +56,16 @@ static void* supply_arrivals()
   return(0);
 }
 
+/*
+* We want to create a global mutex to enfore that only one traffic light can turn green at the same time
+*/
+static pthread_mutex_t intersection_mutex;
+
+/*
+* We use the following code to ensure that each thread know which side it is on and which direction
+*/
+typedef struct { int side; int direction; } LightArgs;
+
 
 /*
  * manage_light(void* arg)
@@ -72,7 +82,29 @@ static void* manage_light(void* arg)
   //  - sleep for CROSS_TIME seconds
   //  - make the traffic light turn red
   //  - unlock the right mutex(es)
+  LightArgs* args = (LightArgs*) arg; 
+  int side = args->side;
+  int direction = args->direction;
 
+  int car_index = 0;
+
+  while (get_time_passed() < END_TIME)
+  {
+    sem_wait(&semaphores[side][direction]);
+
+    pthread_mutex_lock(&intersection_mutex);
+
+    Arrival arrival = curr_arrivals[side][direction][car_index]; 
+    car_index++;
+
+    printf("traffic light %d %d turns green at time %d for car %d\n", side, direction, get_time_passed(), arrival.id);
+
+    sleep(CROSS_TIME); 
+    
+    printf("traffic light %d %d turns red at time %d\n", side, direction, get_time_passed());
+
+    pthread_mutex_unlock(&intersection_mutex);
+  }
   return(0);
 }
 
@@ -88,16 +120,43 @@ int main(int argc, char * argv[])
     }
   }
 
+  //Initialse the mutex
+  pthread_mutex_init(&intersection_mutex, NULL);
+
   // start the timer
   start_time();
 
-  // TODO: create a thread per traffic light that executes manage_light
+  // create a thread per traffic light that executes manage_light
+  pthread_t light_threads[4][3]; 
+  LightArgs args[4][3];
 
-  // TODO: create a thread that executes supply_arrivals
+  for (int i = 0; i < 4; i++) 
+  { 
+    for (int j = 0; j < 3; j++) 
+    { 
+      args[i][j].side = i; 
+      args[i][j].direction = j; 
+      pthread_create(&light_threads[i][j], NULL, manage_light, &args[i][j]); 
+    }
+  }
 
-  // TODO: wait for all threads to finish
+  //create a thread that executes supply_arrivals
+  pthread_t arrival_thread; 
+  pthread_create(&arrival_thread, NULL, supply_arrivals, NULL);
+  pthread_join(arrival_thread, NULL);
+
+  // wait for all threads to finish
+  for (int i = 0; i < 4; i++) 
+  {
+    for (int j = 0; j < 3; j++) 
+    { 
+      pthread_join(light_threads[i][j], NULL); 
+    }
+  }
 
   // destroy semaphores
+  pthread_mutex_destroy(&intersection_mutex);
+  
   for (int i = 0; i < 4; i++)
   {
     for (int j = 0; j < 3; j++)
