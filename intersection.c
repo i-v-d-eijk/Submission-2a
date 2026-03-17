@@ -88,9 +88,16 @@ static void* manage_light(void* arg)
 
   int car_index = 0;
 
-  while (get_time_passed() < END_TIME)
+  while (1)
   {
-    sem_wait(&semaphores[side][direction]);
+    struct timespec ts;
+    clock_gettime(CLOCK_REALTIME, &ts);
+    ts.tv_sec += (END_TIME - get_time_passed());
+
+    if (sem_timedwait(&semaphores[side][direction], &ts) == -1)
+    {
+      break;
+    }
 
     pthread_mutex_lock(&intersection_mutex);
 
@@ -156,7 +163,7 @@ int main(int argc, char * argv[])
 
   // destroy semaphores
   pthread_mutex_destroy(&intersection_mutex);
-  
+
   for (int i = 0; i < 4; i++)
   {
     for (int j = 0; j < 3; j++)
