@@ -74,42 +74,42 @@ typedef struct { int side; int direction; } LightArgs;
  */
 static void* manage_light(void* arg)
 {
-  // TODO:
-  // while it is not END_TIME yet, repeatedly:
-  //  - wait for an arrival using the semaphore for this traffic light
-  //  - lock the right mutex(es)
-  //  - make the traffic light turn green
-  //  - sleep for CROSS_TIME seconds
-  //  - make the traffic light turn red
-  //  - unlock the right mutex(es)
+
   LightArgs* args = (LightArgs*) arg; 
   int side = args->side;
   int direction = args->direction;
 
   int car_index = 0;
 
+  //While it is not END_TIME yet this loop keeps repeating to ensure all cars pass through
   while (1)
   {
     struct timespec ts;
     clock_gettime(CLOCK_REALTIME, &ts);
     ts.tv_sec += (END_TIME - get_time_passed());
 
+    // wait for an arrival using the semaphore for this traffic light
     if (sem_timedwait(&semaphores[side][direction], &ts) == -1)
     {
       break;
     }
 
+     // lock the right mutex(es)
     pthread_mutex_lock(&intersection_mutex);
 
     Arrival arrival = curr_arrivals[side][direction][car_index]; 
     car_index++;
 
+    // make the traffic light turn green
     printf("traffic light %d %d turns green at time %d for car %d\n", side, direction, get_time_passed(), arrival.id);
 
+     // sleep for CROSS_TIME seconds
     sleep(CROSS_TIME); 
     
+    // make the traffic light turn red
     printf("traffic light %d %d turns red at time %d\n", side, direction, get_time_passed());
 
+    // unlock the right mutex(es)
     pthread_mutex_unlock(&intersection_mutex);
   }
   return(0);
